@@ -167,7 +167,14 @@ func main() {
 		ldb, _ = InitLDBDatabase(*ip, *port)
 	}
 
-	host := p2pimpl.NewHost(selfPeer)
+	host, err := p2pimpl.NewHost(&selfPeer)
+	if err != nil {
+		panic("unable to new host in harmony")
+	}
+
+	fmt.Printf("[Harmony] selfPeer: %v\n", selfPeer)
+	fmt.Printf("[Harmony] leader: %v\n", leader)
+
 	host.AddPeer(&leader)
 
 	// Consensus object.

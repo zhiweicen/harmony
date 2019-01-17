@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/harmony-one/harmony/internal/utils"
+	//	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/p2p"
 	libp2p "github.com/libp2p/go-libp2p"
 	p2p_crypto "github.com/libp2p/go-libp2p-crypto"
@@ -28,13 +28,17 @@ type HostV2 struct {
 	h      libp2phost.Host
 	self   p2p.Peer
 	priKey p2p_crypto.PrivKey
-	pubKey p2p_crypto.PubKey
 }
 
 // AddPeer add p2p.Peer into Peerstore
 func (host *HostV2) AddPeer(p *p2p.Peer) error {
 	if p.PeerID != "" && len(p.Addrs) != 0 {
 		host.Peerstore().AddAddrs(p.PeerID, p.Addrs, peerstore.PermanentAddrTTL)
+		return nil
+	}
+
+	if p.PeerID == "" {
+		log.Error("AddPeer PeerID is nil")
 		return nil
 	}
 
@@ -45,25 +49,10 @@ func (host *HostV2) AddPeer(p *p2p.Peer) error {
 		return err
 	}
 
-	if p.PeerID == "" {
-		_, pubKey, err := utils.GenKeyP2PRand()
-		if err != nil {
-			log.Error("AddPeer GenKey error", "error", err)
-			return err
-		}
-
-		peerID, err := peer.IDFromPublicKey(pubKey)
-		if err != nil {
-			log.Error("AddPeer IDFromPublicKey error", "error", err)
-			return err
-		}
-
-		p.PeerID = peerID
-	}
-
 	p.Addrs = append(p.Addrs, targetAddr)
 
 	host.Peerstore().AddAddrs(p.PeerID, p.Addrs, peerstore.PermanentAddrTTL)
+	fmt.Printf("host AddPeer: %v\n", *p)
 
 	return nil
 }
@@ -74,28 +63,23 @@ func (host *HostV2) Peerstore() peerstore.Peerstore {
 }
 
 // New creates a host for p2p communication
-func New(self p2p.Peer) *HostV2 {
-	sourceAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s", self.Port))
-	catchError(err)
+func New(self p2p.Peer, priKey p2p_crypto.PrivKey) *HostV2 {
 
-	priKey, pubKey, err := utils.GenKeyP2PRand()
-	catchError(err)
-
+	// TODO (leo), use the [0] of Addrs for now, need to find a reliable way of using listenAddr
 	p2pHost, err := libp2p.New(context.Background(),
-		libp2p.ListenAddrs(sourceAddr),
+		libp2p.ListenAddrs(self.Addrs[0]),
 		libp2p.Identity(priKey),
 		// TODO(ricl): Other features to probe
 		// libp2p.EnableRelay; libp2p.Routing;
 	)
 
 	catchError(err)
-	log.Debug("HostV2 is up!", "port", self.Port, "id", p2pHost.ID().Pretty(), "addr", sourceAddr)
+	log.Debug("HostV2 is up!", "port", self.Port, "id", p2pHost.ID().Pretty(), "addr", self.Addrs)
 
 	h := &HostV2{
 		h:      p2pHost,
 		self:   self,
 		priKey: priKey,
-		pubKey: pubKey,
 	}
 
 	return h
@@ -124,7 +108,7 @@ func (host *HostV2) BindHandlerAndServe(handler p2p.StreamHandler) {
 func (host *HostV2) SendMessage(p p2p.Peer, message []byte) error {
 	s, err := host.h.NewStream(context.Background(), p.PeerID, ProtocolID)
 	if err != nil {
-		log.Error("Failed to send message", "from", host.self, "to", p, "error", err)
+		log.Error("Failed to send message", "from", host.self, "to", p, "error", err, "PeerID", p.PeerID)
 		return err
 	}
 

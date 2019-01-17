@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/dedis/kyber"
@@ -15,12 +16,13 @@ type StreamHandler func(Stream)
 type Peer struct {
 	IP          string                // IP address of the peer
 	Port        string                // Port number of the peer
-	PubKey      kyber.Point           // Public key of the peer
-	Ready       bool                  // Ready is true if the peer is ready to join consensus.
+	PubKey      kyber.Point           // Public key of the peer, used for consensus signing
+	Ready       bool                  // Ready is true if the peer is ready to join consensus. (FIXME: deprecated)
 	ValidatorID int                   // -1 is the default value, means not assigned any validator ID in the shard
 	Addrs       []multiaddr.Multiaddr // MultiAddress of the peer
-	PeerID      peer.ID               // PeerID
-	// TODO(minhdoan, rj): use this Ready to not send/broadcast to this peer if it wasn't available.
+	PeerID      peer.ID               // PeerID, the pubkey for communication
 }
 
-func (p Peer) String() string { return net.JoinHostPort(p.IP, p.Port) }
+func (p Peer) String() string {
+	return fmt.Sprintf("%s/%s[%d]", net.JoinHostPort(p.IP, p.Port), p.PeerID, len(p.Addrs))
+}

@@ -16,7 +16,6 @@ import (
 	"github.com/harmony-one/harmony/consensus"
 	"github.com/harmony-one/harmony/core/types"
 	"github.com/harmony-one/harmony/internal/newnode"
-	"github.com/harmony-one/harmony/internal/utils"
 	"github.com/harmony-one/harmony/node"
 	"github.com/harmony-one/harmony/p2p"
 	"github.com/harmony-one/harmony/p2p/p2pimpl"
@@ -64,7 +63,6 @@ func main() {
 	// Add GOMAXPROCS to achieve max performance.
 	runtime.GOMAXPROCS(1024)
 
-	var clientPeer *p2p.Peer
 	var BCPeer *p2p.Peer
 	var shardIDLeaderMap map[uint32]p2p.Peer
 
@@ -89,6 +87,8 @@ func main() {
 	candidateNode := newnode.New(*ip, *port)
 	candidateNode.AddPeer(BCPeer)
 	candidateNode.ContactBeaconChain(*BCPeer)
+	selfPeer := candidateNode.GetSelfPeer()
+	selfPeer.PubKey = candidateNode.PubK
 
 	shardIDLeaderMap = candidateNode.Leaders
 
@@ -113,10 +113,10 @@ func main() {
 
 	// Nodes containing blockchain data to mirror the shards' data in the network
 	nodes := []*node.Node{}
-	clientPeer = &p2p.Peer{IP: *ip, Port: *port}
-	_, pubKey := utils.GenKey(clientPeer.IP, clientPeer.Port)
-	clientPeer.PubKey = pubKey
-	host := p2pimpl.NewHost(*clientPeer)
+	host, err := p2pimpl.NewHost(&selfPeer)
+	if err != nil {
+		panic("unable to new host in txgen")
+	}
 	for shardID := range shardIDLeaderMap {
 		node := node.New(host, &consensus.Consensus{ShardID: shardID}, nil)
 		// Assign many fake addresses so we have enough address to play with at first

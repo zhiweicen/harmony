@@ -1,7 +1,6 @@
 package beaconchain
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"strconv"
@@ -20,7 +19,6 @@ import (
 	"github.com/harmony-one/harmony/p2p/host"
 	"github.com/harmony-one/harmony/p2p/p2pimpl"
 	peer "github.com/libp2p/go-libp2p-peer"
-	multiaddr "github.com/multiformats/go-multiaddr"
 )
 
 //BCState keeps track of the state the beaconchain is in
@@ -52,6 +50,7 @@ type BeaconChain struct {
 	state          BCState
 	rpcServer      *beaconchain.Server
 	Peer           p2p.Peer
+	Self           p2p.Peer // self Peer
 }
 
 //SaveFile is to store the file in which beaconchain info will be stored.
@@ -98,7 +97,8 @@ func New(numShards int, ip, port string) *BeaconChain {
 	bc := BeaconChain{}
 	bc.log = log.New()
 	bc.PubKey = generateBCKey()
-	bc.host = p2pimpl.NewHost(p2p.Peer{IP: ip, Port: port})
+	bc.Self = p2p.Peer{IP: ip, Port: port}
+	bc.host, _ = p2pimpl.NewHost(&bc.Self)
 	bcinfo := &BCInfo{NumberOfShards: numShards, NumberOfNodesAdded: 0,
 		IP:             ip,
 		Port:           port,
@@ -117,15 +117,8 @@ func generateBCKey() kyber.Point {
 //AcceptNodeInfo deserializes node information received via beaconchain handler
 func (bc *BeaconChain) AcceptNodeInfo(b []byte) *node.Info {
 	Node := bcconn.DeserializeNodeInfo(b)
-	bc.log.Info("New Node Connection", "IP", Node.IP, "Port", Node.Port)
+	bc.log.Info("New Node Connection", "IP", Node.IP, "Port", Node.Port, "PeerID", Node.PeerID)
 	bc.Peer = p2p.Peer{IP: Node.IP, Port: Node.Port, PeerID: Node.PeerID}
-	addr := fmt.Sprintf("/ip4/%s/tcp/%s", Node.IP, Node.Port)
-	targetAddr, err := multiaddr.NewMultiaddr(addr)
-	if err != nil {
-		log.Error("AcceptNodeInfo NewMultiaddr error", "error", err)
-		return nil
-	}
-	bc.Peer.Addrs = append(bc.Peer.Addrs, targetAddr)
 	bc.host.AddPeer(&bc.Peer)
 
 	bc.BCInfo.NumberOfNodesAdded = bc.BCInfo.NumberOfNodesAdded + 1

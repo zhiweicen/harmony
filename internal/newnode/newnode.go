@@ -42,12 +42,18 @@ type NewNode struct {
 func New(ip string, port string) *NewNode {
 	priKey, pubKey := utils.GenKey(ip, port)
 	var node NewNode
+	var err error
 	node.PubK = pubKey
 	node.priK = priKey
 	node.Self = p2p.Peer{IP: ip, Port: port, PubKey: pubKey, ValidatorID: -1}
 	node.log = log.New()
 	node.SetInfo = false
-	node.host = p2pimpl.NewHost(node.Self)
+	node.host, err = p2pimpl.NewHost(&node.Self)
+	if err != nil {
+		node.log.Error("failed to create new host", "msg", err)
+		return nil
+	}
+	fmt.Printf("newnode.Self: %v\n", node.Self)
 	node.Leaders = map[uint32]p2p.Peer{}
 	return &node
 }
@@ -112,21 +118,21 @@ func (node *NewNode) processShardInfo(msgPayload []byte) bool {
 	for n, v := range leaders {
 		leaderPeer := p2p.Peer{IP: v.IP, Port: v.Port, PeerID: v.PeerID}
 
-      addr := fmt.Sprintf("/ip4/%s/tcp/%s", leaderPeer.IP, leaderPeer.Port)
-      targetAddr, err := multiaddr.NewMultiaddr(addr)
-      if err != nil {
-         log.Error("processShardInfo NewMultiaddr error", "error", err)
-         return false
-      }
-      leaderPeer.Addrs = append(leaderPeer.Addrs, targetAddr)
+		addr := fmt.Sprintf("/ip4/%s/tcp/%s", leaderPeer.IP, leaderPeer.Port)
+		targetAddr, err := multiaddr.NewMultiaddr(addr)
+		if err != nil {
+			log.Error("processShardInfo NewMultiaddr error", "error", err)
+			return false
+		}
+		leaderPeer.Addrs = append(leaderPeer.Addrs, targetAddr)
 
-      leaderPeer.PubKey = crypto.Ed25519Curve.Point()
-      err = leaderPeer.PubKey.UnmarshalBinary(v.PubKey[:])
-      if err != nil {
-         node.log.Error("Could not unmarshall leaders public key from binary to kyber.point")
-      }
-      node.Leaders[uint32(n)] = leaderPeer
-   }
+		leaderPeer.PubKey = crypto.Ed25519Curve.Point()
+		err = leaderPeer.PubKey.UnmarshalBinary(v.PubKey[:])
+		if err != nil {
+			node.log.Error("Could not unmarshall leaders public key from binary to kyber.point")
+		}
+		node.Leaders[uint32(n)] = leaderPeer
+	}
 
 	node.leader = node.Leaders[uint32(shardNum-1)]
 	node.isLeader = isLeader

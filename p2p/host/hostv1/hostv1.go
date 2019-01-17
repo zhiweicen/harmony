@@ -18,15 +18,15 @@ type HostV1 struct {
 	quit     chan struct{}
 }
 
-// AddPeer gets self peer
+// AddPeer do nothing
 func (host *HostV1) AddPeer(p *p2p.Peer) error {
 	return nil
 }
 
 // New creates a HostV1
-func New(self p2p.Peer) *HostV1 {
+func New(self *p2p.Peer) *HostV1 {
 	h := &HostV1{
-		self: self,
+		self: *self,
 		quit: make(chan struct{}, 1),
 	}
 	return h
